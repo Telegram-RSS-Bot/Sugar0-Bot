@@ -1,4 +1,6 @@
 import argparse
+from datetime import datetime
+from email import message
 import html
 from xml.sax.handler import feature_external_ges
 import bs4
@@ -159,7 +161,7 @@ class BotHandler:
             message+='\n\nExtra info:'
             msg+='\n\nExtra info'
             for key, value in args.items():
-                message+=f'\n<pre>{key} = {html.escape(commentjson.dumps(value, indent = 2, ensure_ascii = False))}</pre>'
+                message+=f'\n<pre>{key} = {html.escape(commentjson.dumps(value, indent = 2, ensure_ascii = False, default=str))}</pre>'
                 msg+=f'\n{key} = {commentjson.dumps(value, indent = 2, ensure_ascii = False, default=str)}'
         
         if len(message)<=self.MAX_MSG_LEN:
@@ -472,19 +474,17 @@ class BotHandler:
 
     def check_new_feed(self):
         last_date = self.get_data('last-feed-date', DB = self.data_db)
-        latest_date = last_date
+        new_date = last_date
         for feed in self.read_feed():
-            feed_date = parse_date(feed['date']) if feed['date'] else None
-            if feed_date is not None and (last_date is None or latest_date < feed_date):  # if feed_date is not None and last_date not exist or last feed's date is older than the new one
-                self.set_data('last-feed-date', feed_date, DB = self.data_db)
-                latest_date = feed_date
-            if feed_date is None or (last_date is not None and last_date < feed_date):
+            date = parse_date(feed['date'])
+            if date is None or last_date is not None and date<last_date:
+                new_date = date
                 messages = self.render_feed(feed, header= self.get_string('new-feed'))
                 self.send_feed(messages, self.iter_all_chats())
-                if feed_date is None or last_date is None:
-                    break   #just send last feed
-            else:
-                break   #no new feed
+            if date is None or date>=last_date:
+                break
+        if new_date is not None:
+            self.set_data('last-feed-date', new_date, DB = self.data_db)
         if self.__check:
             self.check_thread = Timer(self.interval, self.check_new_feed)
             self.check_thread.start()
