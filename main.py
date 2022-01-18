@@ -1,4 +1,5 @@
 import argparse
+from asyncio.log import logger
 from datetime import datetime
 from email import message
 import html
@@ -482,14 +483,16 @@ class BotHandler:
         for feed in self.read_feed():
             date = parse_date(feed['date'])
             if date is None or last_date is not None and date>last_date:
-                new_date = date
                 self.logger.info(f'sendings new feed date:{date}, last_date:{last_date}')
                 messages = self.render_feed(feed, header= self.get_string('new-feed'))
                 self.send_feed(messages, self.iter_all_chats())
             if date is None or date<=last_date:
                 self.logger.info('no more new feeds')
                 break
+            elif new_date is None or date>new_date:
+                new_date = date
         if new_date is not None:
+            self.logger.debug(f'new feed-date:{new_date}')
             self.set_data('last-feed-date', new_date, DB = self.data_db)
         if self.__check:
             self.logger.info(f'setting new feed check after {self.interval} seconds')
