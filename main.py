@@ -31,7 +31,7 @@ import time
 from functools import wraps
 
 
-def retry(tries=4, delay=3, backoff=2):
+def retry(tries=4, delay=3, backoff=2, logger=logging):
     """Retry calling the decorated function using an exponential backoff.
 
     http://www.saltycrane.com/blog/2009/11/trying-out-retry-decorator-python/
@@ -60,7 +60,7 @@ def retry(tries=4, delay=3, backoff=2):
                     return f(*args, **kwargs)
                 except Exception as e:
                     msg = "%s, Retrying in %d seconds..." % (str(e), mdelay)
-                    logging.warning(msg)
+                    logger.warning(msg)
                     time.sleep(mdelay)
                     mtries -= 1
                     mdelay *= backoff
@@ -110,7 +110,8 @@ class BotHandler:
         self.interval = self.get_data('interval', 5*60, data_db)
         self.__check = True
         self.bug_reporter = bug_reporter if bug_reporter else None
-        self.debug = False
+        self.debug = debug
+        self.logger = logging.getLogger('RSS-Bot')
 
         if debug:
             Handlers.add_debuging_handlers(self)
@@ -147,7 +148,7 @@ class BotHandler:
 
     def log_bug(self, exc:Exception, msg='', report = True, disable_notification = False,**args):
         info = BugReporter.exception(msg, exc, report = self.bug_reporter and report)
-        logging.exception(msg, exc_info=exc)
+        self.logger.exception(msg, exc_info=exc)
         msg = html.escape(msg)
         escaped_info = {k:html.escape(str(v)) for k,v in info.items()}
         message = (
@@ -203,7 +204,9 @@ class BotHandler:
 
     @retry(10, 5)
     def get_feeds(self):
+        self.logger.info('Getting feeds')
         with urlopen(self.feed_configs['source']) as f:
+            self.logger.debug('Got feeds')
             return f.read().decode('utf-8')
 
     def summarize(self, soup:Soup, max_length, read_more):
@@ -473,21 +476,26 @@ class BotHandler:
                 txn.delete(key.encode())
 
     def check_new_feed(self):
+        self.logger.info('Checking for new feeds')
         last_date = self.get_data('last-feed-date', DB = self.data_db)
         new_date = last_date
         for feed in self.read_feed():
             date = parse_date(feed['date'])
-            if date is None or last_date is not None and date<last_date:
+            if date is None or last_date is not None and date>last_date:
                 new_date = date
+                self.logger.info(f'sendings new feed date:{date}, last_date:{last_date}')
                 messages = self.render_feed(feed, header= self.get_string('new-feed'))
                 self.send_feed(messages, self.iter_all_chats())
-            if date is None or date>=last_date:
+            if date is None or date<=last_date:
+                self.logger.info('no more new feeds')
                 break
         if new_date is not None:
             self.set_data('last-feed-date', new_date, DB = self.data_db)
         if self.__check:
+            self.logger.info(f'setting new feed check after {self.interval} seconds')
             self.check_thread = Timer(self.interval, self.check_new_feed)
             self.check_thread.start()
+        self.logger.info('exiting check_new_feed')
 
 
     def get_data(self, key, default = None, DB = None, do = lambda data: pickle.loads(data)):
