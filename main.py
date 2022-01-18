@@ -10,6 +10,7 @@ import re
 import sys
 
 from telegram.files.document import Document
+from customization import *
 import BugReporter
 import Handlers
 import io
@@ -198,7 +199,7 @@ class BotHandler:
                 tag.attrs = dict()
         return soup
 
-    @retry(10)
+    @retry(10, 5)
     def get_feeds(self):
         with urlopen(self.feed_configs['source']) as f:
             return f.read().decode('utf-8')
@@ -331,13 +332,21 @@ class BotHandler:
                     for e in content.select(elem):
                         e.extract()
                 content = self.purge(content)
-                images = content.find_all('img')
+                images = []
+                for link in content.find_all('a'):
+                    if link['href'].startswith('https://streamja.com/'):
+                        messages[0]['type'] = 'video'
+                        messages[0]['src'] = grab_video(link['href'])
+                        link.extract()
+                        text, overflow = self.summarize(content, self.MAX_CAP_LEN, self.get_string('read-more'))
+                else:
+                    images = content.find_all('img')
                 first = True
 
-                if not len(images):
+                if images is not None and len(images) == 0:
                     content, overflow = self.summarize(content, self.MAX_MSG_LEN, self.get_string('read-more'))
                     messages[0]['text'] += '\n'+content
-                else:
+                elif images is not None:
                     left, img_link, right = None, None, str(content)
                     
                     for img in images:
@@ -403,8 +412,9 @@ class BotHandler:
         try:
             for chat_id, chat_data in chats:
                 for msg in messages:
+                    msg_type = msg['type']
                     try:
-                        if msg['type'] == 'text':
+                        if msg_type == 'text':
                             self.bot.send_message(
                                 chat_id,
                                 msg['text'],
@@ -412,13 +422,23 @@ class BotHandler:
                                 reply_markup = InlineKeyboardMarkup(msg['markup']) if msg['markup'] else None,
                                 disable_web_page_preview = True
                             )
-                        elif msg['type'] == 'image':
+                        elif msg_type == 'image':
                             if msg['text'] == '':
                                 msg['text'] = None
                             self.bot.send_photo(
                                 chat_id,
                                 msg['src'],
-                                msg['text'],
+                                caption = msg['text'],
+                                parse_mode = ParseMode.HTML,
+                                reply_markup = InlineKeyboardMarkup(msg['markup']) if msg['markup'] else None
+                            )
+                        elif msg_type == 'video':
+                            if msg['text'] == '':
+                                msg['text'] = None
+                            self.bot.send_video(
+                                chat_id,
+                                msg['src'],
+                                caption = msg['text'],
                                 parse_mode = ParseMode.HTML,
                                 reply_markup = InlineKeyboardMarkup(msg['markup']) if msg['markup'] else None
                             )

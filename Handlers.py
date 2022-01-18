@@ -790,17 +790,20 @@ def add_users_handlers(server: BotHandler):
         server.set_data(key=str(chat.id), value=data)
 
     @dispatcher_decorators.commandHandler
+    
     def last_feed(u: Update, c: CallbackContext):
         if u.effective_user.id not in server.adminID and 'time' in c.user_data:
             if c.user_data['time'] > datetime.now():
                 u.message.reply_text(server.get_string('time-limit-error'))
                 return
+        wait_msg = u.message.reply_animation(open("wait animation.tgs", 'rb'))
         server.send_feed(
             server.render_feed(
                 next(server.read_feed(0)),
                 server.get_string('last-feed')
             ),
             chats = [(u.effective_chat.id, c.chat_data)])
+        wait_msg.delete()
         c.user_data['time'] = datetime.now() + timedelta(minutes = 2)      #The next request is available 2 minutes later
     
     @dispatcher_decorators.commandHandler(command = 'help')
