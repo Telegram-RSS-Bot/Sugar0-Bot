@@ -492,17 +492,16 @@ class BotHandler:
         self.logger.info('Checking for new feeds')
         last_date = self.get_data('last-feed-date', DB = self.data_db)
         new_date = last_date
-        limit = self.feed_configs.get('feed-limit',1)
         for i,feed in enumerate(self.read_feed()):
             date = parse_date(feed['date']) if feed['date'] else None
             if date is None or last_date is not None and date>last_date:
                 self.logger.info(f'sendings new feed date:{date}, last_date:{last_date}')
                 messages = self.render_feed(feed, header= self.get_string('new-feed'))
                 self.send_feed(messages, self.iter_all_chats())
-            if date is not None and date<=last_date or date is None and i >= limit:
+            if date is None or date<=last_date:
                 self.logger.info('no more new feeds')
                 break
-            elif new_date is None or date is not None and date>new_date:
+            elif new_date is None or date>new_date:
                 new_date = date
         if new_date is not None:
             self.logger.debug(f'new feed-date:{new_date}')
