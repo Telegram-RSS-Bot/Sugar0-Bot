@@ -801,6 +801,7 @@ def add_users_handlers(server: BotHandler):
             feed = next(server.read_feed())
         except StopIteration:
             u.message.reply_text("unable to get last feed right now, try again later")
+            wait_msg.delete()
             return
         server.send_feed(
             server.render_feed(

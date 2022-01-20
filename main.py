@@ -209,7 +209,7 @@ class BotHandler:
     def get_feeds(self):
         self.logger.info('Getting feeds')
         with urlopen(self.feed_configs['source']) as f:
-            self.logger.debug('Got feeds')
+            self.logger.info('Got feeds')
             return f.read().decode('utf-8')
 
     def summarize(self, soup:Soup, max_length, read_more):
@@ -259,7 +259,7 @@ class BotHandler:
         
         soup_page = Soup(feeds_page, self.feed_configs.get('feed-format', 'xml'))
         feeds_list = soup_page.select(self.feed_configs['feeds-selector'])
-        self.logger.debug(f'Got {len(feeds_list)} feeds')
+        self.logger.info(f'Got {len(feeds_list)} feeds')
         title, link, content, time = None, None, None, None
         for feed in feeds_list[index:]:
             try:
@@ -357,7 +357,6 @@ class BotHandler:
                                     messages[0]['type'] = 'video'
                                     messages[0]['src'] = src
                                     text, overflow = self.summarize(content, self.MAX_CAP_LEN, self.get_string('read-more'))
-                                    messages[0]['text']+=text
                                     break
                         messages[0]['markup'] = [[InlineKeyboardButton('Link', link['href'])]]
                 else:

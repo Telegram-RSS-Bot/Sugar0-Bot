@@ -15,12 +15,10 @@ def grab_video(link)->str:
     # Parse the page
     soup = BeautifulSoup(video_page.text, 'html.parser')
     video = soup.select_one('video')
-    if 'src' in video.attrs:
+    if video.has_attr('src'):
         return video['src']
-    if 'data-src' in video.attrs:
+    if video.has_attr('data-src'):
         return video['data-src']
-    if 'data-video-url' in video.attrs:
-        return video['data-video-url']
     if video.source:
         return video.source['src']
     return None
