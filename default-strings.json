@@ -1,5 +1,5 @@
 {
-    "en-us":{
+    "en-us": {
         "welcome": [
             "Hi, I'm open\\-source [telegram RSS bot](https://github.com/bsimjoo/Telegram_RSS_bot) ",
             "writen by [BSimjoo](https://github.com/bsimjoo) and this is a default message\\.\n",
@@ -36,7 +36,7 @@
         "edited-message": "Sorry this bot can not handle edited messages, please resend your message",
         "read-more": "read more ...",
         "image-link": "Open image URL",
-        "goto-post": "Read this article"
+        "goto-post": "Comments"
     },
     "fa-ir": {
         "welcome": [

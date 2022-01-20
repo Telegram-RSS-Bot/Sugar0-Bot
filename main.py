@@ -11,6 +11,7 @@ import os
 import pickle
 import re
 import sys
+from pyparsing import Regex
 
 from telegram.files.document import Document
 from customization import *
@@ -113,6 +114,7 @@ class BotHandler:
         self.bug_reporter = bug_reporter if bug_reporter else None
         self.debug = debug
         self.logger = logging.getLogger('RSS-Bot')
+        self.host_re = re.compile(r'https?://([^/\s]*)')
 
         if debug:
             Handlers.add_debuging_handlers(self)
@@ -203,7 +205,7 @@ class BotHandler:
                 tag.attrs = dict()
         return soup
 
-    @retry(10, 5)
+    @retry(10, 10, 1.5)
     def get_feeds(self):
         self.logger.info('Getting feeds')
         with urlopen(self.feed_configs['source']) as f:
@@ -328,7 +330,7 @@ class BotHandler:
             title = f'<b>{title}</b>'
             if post_link:
                 title = f'<a href="{post_link}">{title}</a>'
-            messages[0]['text']+=title
+            messages[0]['text']+=title+'\n\n'
         overflow = False
         try:
             if content:
@@ -340,11 +342,21 @@ class BotHandler:
                 content = self.purge(content)
                 images = []
                 for link in content.find_all('a'):
-                    if link['href'].startswith('https://streamja.com/'):
-                        messages[0]['type'] = 'video'
-                        messages[0]['src'] = grab_video(link['href'])
+                    if link.text == '[comments]':
                         link.extract()
-                        text, overflow = self.summarize(content, self.MAX_CAP_LEN, self.get_string('read-more'))
+                        continue
+                    elif link.text == '[link]':
+                        link.extract()
+                        m = self.host_re.match(link['href'])
+                        if m:
+                            host = m.group(1)
+                            if host in self.feed_configs.get('video-hosts',[]):
+                                messages[0]['type'] = 'video'
+                                messages[0]['src'] = grab_video(link['href'])
+                                text, overflow = self.summarize(content, self.MAX_CAP_LEN, self.get_string('read-more'))
+                                messages[0]['text']+=text
+                                break
+                        messages[0]['markup'] = [[InlineKeyboardButton('Link', link['href'])]]
                 else:
                     images = content.find_all('img')
                 first = True
@@ -480,16 +492,17 @@ class BotHandler:
         self.logger.info('Checking for new feeds')
         last_date = self.get_data('last-feed-date', DB = self.data_db)
         new_date = last_date
-        for feed in self.read_feed():
-            date = parse_date(feed['date'])
+        limit = self.feed_configs.get('feed-limit',1)
+        for i,feed in enumerate(self.read_feed()):
+            date = parse_date(feed['date']) if feed['date'] else None
             if date is None or last_date is not None and date>last_date:
                 self.logger.info(f'sendings new feed date:{date}, last_date:{last_date}')
                 messages = self.render_feed(feed, header= self.get_string('new-feed'))
                 self.send_feed(messages, self.iter_all_chats())
-            if date is None or date<=last_date:
+            if date is not None and date<=last_date or date is None and i >= limit:
                 self.logger.info('no more new feeds')
                 break
-            elif new_date is None or date>new_date:
+            elif new_date is None or date is not None and date>new_date:
                 new_date = date
         if new_date is not None:
             self.logger.debug(f'new feed-date:{new_date}')
