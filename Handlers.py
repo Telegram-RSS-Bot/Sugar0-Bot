@@ -799,7 +799,7 @@ def add_users_handlers(server: BotHandler):
         wait_msg = u.message.reply_animation(open("wait animation.tgs", 'rb'))
         server.send_feed(
             server.render_feed(
-                next(server.read_feed(0)),
+                next(server.read_feed()),
                 server.get_string('last-feed')
             ),
             chats = [(u.effective_chat.id, c.chat_data)])
