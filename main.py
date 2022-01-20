@@ -351,11 +351,13 @@ class BotHandler:
                         if m:
                             host = m.group(1)
                             if host in self.feed_configs.get('video-hosts',[]):
-                                messages[0]['type'] = 'video'
-                                messages[0]['src'] = grab_video(link['href'])
-                                text, overflow = self.summarize(content, self.MAX_CAP_LEN, self.get_string('read-more'))
-                                messages[0]['text']+=text
-                                break
+                                src = grab_video(link['href'])
+                                if src:
+                                    messages[0]['type'] = 'video'
+                                    messages[0]['src'] = src
+                                    text, overflow = self.summarize(content, self.MAX_CAP_LEN, self.get_string('read-more'))
+                                    messages[0]['text']+=text
+                                    break
                         messages[0]['markup'] = [[InlineKeyboardButton('Link', link['href'])]]
                 else:
                     images = content.find_all('img')
