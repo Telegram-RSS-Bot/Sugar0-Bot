@@ -797,9 +797,14 @@ def add_users_handlers(server: BotHandler):
                 u.message.reply_text(server.get_string('time-limit-error'))
                 return
         wait_msg = u.message.reply_animation(open("wait animation.tgs", 'rb'))
+        try:
+            feed = next(server.read_feed())
+        except StopIteration:
+            u.message.reply_text("unable to get last feed right now, try again later")
+            return
         server.send_feed(
             server.render_feed(
-                next(server.read_feed()),
+                feed,
                 server.get_string('last-feed')
             ),
             chats = [(u.effective_chat.id, c.chat_data)])
