@@ -259,6 +259,7 @@ class BotHandler:
         
         soup_page = Soup(feeds_page, self.feed_configs.get('feed-format', 'xml'))
         feeds_list = soup_page.select(self.feed_configs['feeds-selector'])
+        self.logger.debug(f'Got {len(feeds_list)} feeds')
         title, link, content, time = None, None, None, None
         for feed in feeds_list[index:]:
             try:
@@ -497,7 +498,7 @@ class BotHandler:
         for i,feed in enumerate(self.read_feed()):
             date = parse_date(feed['date']) if feed['date'] else None
             if date is None or last_date is not None and date>last_date:
-                self.logger.info(f'sendings new feed date:{date}, last_date:{last_date}')
+                self.logger.info(f'sendings new feed date:{date}')
                 messages = self.render_feed(feed, header= self.get_string('new-feed'))
                 self.send_feed(messages, self.iter_all_chats())
             if date is None or last_date is None or date<=last_date:
@@ -512,7 +513,6 @@ class BotHandler:
             self.logger.info(f'setting new feed check after {self.interval} seconds')
             self.check_thread = Timer(self.interval, self.check_new_feed)
             self.check_thread.start()
-        self.logger.info('exiting check_new_feed')
 
 
     def get_data(self, key, default = None, DB = None, do = lambda data: pickle.loads(data)):
