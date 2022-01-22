@@ -803,11 +803,11 @@ def add_users_handlers(server: BotHandler):
                 u.message.reply_text(server.get_string('time-limit-error'))
                 return
         
-        count = 0
+        count = 1
         if len(c.args) == 1:
             if c.args[0].isdigit():
                 arg = int(c.args[0])
-                count = arg if arg > 0 else 0
+                count = arg if arg > 1 else 1
 
 
         wait_msg = u.message.reply_animation(open("wait animation.tgs", 'rb'))
