@@ -535,12 +535,12 @@ you can send the last feed manually by sending /last_feed command to the bot')
                 self.logger.info(f'sendings new feed date:{date}')
                 messages = self.render_feed(feed, header= self.get_string('new-feed'))
                 self.send_feed(messages, self.iter_all_chats())
+            if new_date is None or date is not None and date>new_date:
+                new_date = date
             if date is None or last_date is None or date<=last_date:
                 self.logger.debug(f'feed date:{date} last_date:{last_date}')
                 self.logger.info('no more new feeds')
                 break
-            elif new_date is None or date>new_date:
-                new_date = date
         if new_date is not None:
             self.logger.debug(f'new feed-date:{new_date}')
             self.set_data('last-feed-date', new_date, DB = self.data_db)
