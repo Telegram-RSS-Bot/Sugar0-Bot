@@ -390,7 +390,7 @@ you can send the last feed manually by sending /last_feed command to the bot')
                                 if src:
                                     self.logger.debug(f'Found video: {src}')
                                     messages[0]['type'] = 'video'
-                                    if not src.startswith('https'):
+                                    if not src.startswith('http'):
                                         src = f'https:{src}'
                                     messages[0]['src'] = src
                                     content = self.purge(content, False)
