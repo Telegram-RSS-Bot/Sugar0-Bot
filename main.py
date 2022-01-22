@@ -357,6 +357,7 @@ you can send the last feed manually by sending /last_feed command to the bot')
         title = feed['title']
         post_link = feed['link']
         content = feed['content']
+        images = None
         messages = [{
             'type': 'text',
             'text': header+'\n',
