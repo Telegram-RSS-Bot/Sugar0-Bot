@@ -110,7 +110,9 @@ class BotHandler:
         self.source = feed_configs['source']
         last_source = self.get_data('source', DB = data_db)
         if last_source != self.source:
-            self.logger.warning(f'Source changed from {last_source} to {self.source}, so last feed date will be reset and no feed wil be sent until new feed published on this source.')
+            self.logger.warning(f'Source changed from {last_source} to {self.source}, \
+                so last feed date will be reset and no feed wil be sent until new feed published on this source.\
+                you can send the last feed manually by sending /last_feed command to the bot')
             self.set_data('source', self.source, DB = data_db)
             self.set_data('last-feed-date', None, DB = data_db)
         self.interval = self.get_data('interval', 5*60, data_db)
