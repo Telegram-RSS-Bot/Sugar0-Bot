@@ -214,7 +214,7 @@ you can send the last feed manually by sending /last_feed command to the bot')
                 tag.attrs = dict()
         return soup
 
-    @retry(10, 10, 1.5)
+    @retry(10, 10, 2)
     def get_feeds(self):
         self.logger.info('Getting feeds')
         with urlopen(self.feed_configs['source']) as f:
@@ -258,7 +258,7 @@ you can send the last feed manually by sending /last_feed command to the bot')
     #   - format: feed/{selector}, content/{selector}, title/{regex}, none
     # - remove-elements-selector: skip any element that has this attribute
 
-    def read_feed(self, index=0):
+    def read_feed(self, count=-1):
         feeds_page = None
         try:
             feeds_page = self.get_feeds()
@@ -269,8 +269,9 @@ you can send the last feed manually by sending /last_feed command to the bot')
         soup_page = Soup(feeds_page, self.feed_configs.get('feed-format', 'xml'))
         feeds_list = soup_page.select(self.feed_configs['feeds-selector'])
         self.logger.info(f'Got {len(feeds_list)} feeds')
+        self.logger.debug(f'iterating over {count if count > 0 else "all"} feeds')
         title, link, content, time = None, None, None, None
-        for feed in feeds_list[index:]:
+        for feed in feeds_list[:count]:
             try:
                 if self.__skip_field == 'feed':
                     if self.__skip(feed):
@@ -394,8 +395,6 @@ you can send the last feed manually by sending /last_feed command to the bot')
                                         src = f'https:{src}'
                                     messages[0]['src'] = src
                                     content = self.purge(content, False)
-                                    text, overflow = self.summarize(content, self.MAX_CAP_LEN, self.get_string('read-more'))
-                                    messages[0]['text']+=text
                                     break
                         messages[0]['markup'] = [[InlineKeyboardButton('Link', link['href'])]]
                 else:
@@ -534,6 +533,7 @@ you can send the last feed manually by sending /last_feed command to the bot')
     def check_new_feed(self):
         self.logger.info('Checking for new feeds')
         last_date = self.get_data('last-feed-date', DB = self.data_db)
+        self.logger.debug(f'last feed date: {last_date}')
         new_date = last_date
         for i,feed in enumerate(self.read_feed()):
             date = parse_date(feed['date']) if feed['date'] else None
@@ -543,13 +543,12 @@ you can send the last feed manually by sending /last_feed command to the bot')
                 self.send_feed(messages, self.iter_all_chats())
             if new_date is None or date is not None and date>new_date:
                 new_date = date
+                self.logger.debug(f'new feed-date:{new_date}')
+                self.set_data('last-feed-date', new_date, DB = self.data_db)
             if date is None or last_date is None or date<=last_date:
                 self.logger.debug(f'feed date:{date} last_date:{last_date}')
                 self.logger.info('no more new feeds')
                 break
-        if new_date is not None:
-            self.logger.debug(f'new feed-date:{new_date}')
-            self.set_data('last-feed-date', new_date, DB = self.data_db)
         if self.__check:
             self.logger.info(f'setting new feed check after {self.interval} seconds')
             self.check_thread = Timer(self.interval, self.check_new_feed)

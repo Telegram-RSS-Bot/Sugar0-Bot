@@ -178,20 +178,18 @@ def add_admin_handlers(server: BotHandler):
     @dispatcher_decorators.commandHandler
     @admin_auth
     def send_feed_toall(u: Update, c: CallbackContext):
-        count = 0
+        count = 1
         if len(c.args) == 1:
             if c.args[0].isdigit():
                 arg = int(c.args[0])
-                count = arg -1 if arg > 0 else 0
-        for i,feed in enumerate(server.get_feed()):
+                count = arg if arg > 1 else 1
+        for feed in server.read_feed(count):
             server.send_feed(
                 server.render_feed(
                     feed,
                     server.get_string('last-feed')
                 ),
                 chats = server.iter_all_chats())
-            if i >= count:
-                break
 
     @dispatcher_decorators.commandHandler
     @admin_auth
@@ -809,11 +807,11 @@ def add_users_handlers(server: BotHandler):
         if len(c.args) == 1:
             if c.args[0].isdigit():
                 arg = int(c.args[0])
-                count = arg -1 if arg > 0 else 0
+                count = arg if arg > 0 else 0
 
 
         wait_msg = u.message.reply_animation(open("wait animation.tgs", 'rb'))
-        for i,feed in enumerate(server.get_feed()):
+        for feed in server.read_feed(count):
             server.send_feed(
                 server.render_feed(
                     feed,
@@ -821,12 +819,8 @@ def add_users_handlers(server: BotHandler):
                 ),
                 chats = [(u.effective_chat.id, c.chat_data)])
             wait_msg.delete()
-            if i >= count:
-                break
-            else:
-                wait_msg = u.message.reply_animation(open("wait animation.tgs", 'rb'))
-        else:
-            wait_msg.delete()
+            wait_msg = u.message.reply_animation(open("wait animation.tgs", 'rb'))
+        wait_msg.delete()
         c.user_data['time'] = datetime.now() + timedelta(minutes = 2)      #The next request is available 2 minutes later
     
     @dispatcher_decorators.commandHandler(command = 'help')
