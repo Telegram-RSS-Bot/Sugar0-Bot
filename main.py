@@ -111,11 +111,14 @@ class BotHandler:
         self.interval = self.get_data('interval', 5*60, data_db)
         self.__check = True
         self.bug_reporter = bug_reporter if bug_reporter else None
+        self.log_updates = False
         self.debug = debug
         self.logger = logging.getLogger('RSS-Bot')
+        if self.debug:
+            self.logger.setLevel(logging.DEBUG)
         self.host_re = re.compile(r'https?://([^/\s]*)')
 
-        if debug:
+        if self.debug:
             Handlers.add_debuging_handlers(self)
 
         Handlers.add_users_handlers(self)
@@ -208,7 +211,7 @@ class BotHandler:
     def get_feeds(self):
         self.logger.info('Getting feeds')
         with urlopen(self.feed_configs['source']) as f:
-            self.logger.info('Got feeds')
+            self.logger.debug('Got feeds')
             return f.read().decode('utf-8')
 
     def summarize(self, soup:Soup, max_length, read_more):
@@ -319,6 +322,7 @@ class BotHandler:
 
     def grab_video(self,link):
         # Get the video page
+        self.logger.debug(f'getting video page from {link}')
         try:
             with urlopen(link) as f:
                 video_page = f.read().decode('utf-8')
@@ -373,6 +377,7 @@ class BotHandler:
                             if host in self.feed_configs.get('video-hosts',[]):
                                 src = self.grab_video(link['href'])
                                 if src:
+                                    self.logger.debug(f'Found video: {src}')
                                     messages[0]['type'] = 'video'
                                     messages[0]['src'] = src
                                     content = self.purge(content, False)
@@ -501,6 +506,7 @@ class BotHandler:
     def iter_all_chats(self):
         deathlist = []
         with env.begin(self.chats_db) as txn:
+            self.logger.debug(f'iterating all {txn.stat()["entries"]} chats')
             for key, value in txn.cursor():
                 data = pickle.loads(value)
                 if not isinstance(data,dict):
@@ -523,6 +529,7 @@ class BotHandler:
                 messages = self.render_feed(feed, header= self.get_string('new-feed'))
                 self.send_feed(messages, self.iter_all_chats())
             if date is None or last_date is None or date<=last_date:
+                self.logger.debug(f'feed date:{date} last_date:{last_date}')
                 self.logger.info('no more new feeds')
                 break
             elif new_date is None or date>new_date:

@@ -104,7 +104,7 @@ def add_debuging_handlers(server: BotHandler):
             f'chat_data = {json.dumps(c.chat_data, indent = 2, ensure_ascii = False, default=str)}'
         )
         logging.info(message)
-        if server.debug:
+        if server.log_updates:
             try:
                 server.bot.send_message(server.ownerID, html.escape(
                     message), parse_mode=ParseMode.HTML)
@@ -115,8 +115,8 @@ def add_debuging_handlers(server: BotHandler):
     @dispatcher_decorators.commandHandler
     @auth(server.ownerID, unknown_command)
     def log_updates(u: Update, c: CallbackContext):
-        server.debug = not server.debug
-        if server.debug:
+        server.log_updates = not server.log_updates
+        if server.log_updates:
             u.message.reply_text(
                 'Debug enabled. now bot sends all updates for you')
         else:
