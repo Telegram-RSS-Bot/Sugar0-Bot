@@ -107,6 +107,9 @@ class BotHandler:
         self.strings = strings
         #`source` now is a property of `feed_config`
         self.feed_configs = feed_configs
+        self.logger = logging.getLogger('RSS-Bot')
+        if self.debug:
+            self.logger.setLevel(logging.DEBUG)
         self.source = feed_configs['source']
         last_source = self.get_data('source', DB = data_db)
         if last_source != self.source:
@@ -120,9 +123,6 @@ class BotHandler:
         self.bug_reporter = bug_reporter if bug_reporter else None
         self.log_updates = False
         self.debug = debug
-        self.logger = logging.getLogger('RSS-Bot')
-        if self.debug:
-            self.logger.setLevel(logging.DEBUG)
         self.host_re = re.compile(r'https?://([^/\s]*)')
 
         if self.debug:
