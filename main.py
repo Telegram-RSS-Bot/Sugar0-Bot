@@ -14,7 +14,6 @@ import sys
 from pyparsing import Regex
 
 from telegram.files.document import Document
-from customization import *
 import BugReporter
 import Handlers
 import io
@@ -318,6 +317,28 @@ class BotHandler:
                 'date': time
                 }
 
+    def grab_video(self,link):
+        # Get the video page
+        try:
+            with urlopen(link) as f:
+                video_page = f.read().decode('utf-8')
+        except Exception as e:
+            self.logger.error(f'Exception while getting video page: {e}, link: {link}')
+            return None
+        
+        # Get the video
+        soup = Soup(video_page, 'html.parser')
+        video = soup.find('video')
+        if video:
+            if video.has_attr('src'):
+                return video['src']
+            else:
+                source = video.find('source')
+                if source:
+                    return source['src']
+        self.logger.error(f'Video not found on {link}')
+        return None
+
     def render_feed(self, feed: dict, header: str):
         title = feed['title']
         post_link = feed['link']
@@ -340,8 +361,6 @@ class BotHandler:
                 for elem in remove_elem:
                     for e in content.select(elem):
                         e.extract()
-                content = self.purge(content)
-                images = []
                 for link in content.find_all('a'):
                     if link.text == '[comments]':
                         link.extract()
@@ -352,23 +371,24 @@ class BotHandler:
                         if m:
                             host = m.group(1)
                             if host in self.feed_configs.get('video-hosts',[]):
-                                src = grab_video(link['href'])
+                                src = self.grab_video(link['href'])
                                 if src:
                                     messages[0]['type'] = 'video'
                                     messages[0]['src'] = src
+                                    content = self.purge(content, False)
                                     text, overflow = self.summarize(content, self.MAX_CAP_LEN, self.get_string('read-more'))
+                                    messages[0]['text']+=text
                                     break
                         messages[0]['markup'] = [[InlineKeyboardButton('Link', link['href'])]]
                 else:
+                    content = self.purge(content,True)
                     images = content.find_all('img')
-                first = True
-
-                if images is not None and len(images) == 0:
+                if images is None or len(images) == 0:
                     content, overflow = self.summarize(content, self.MAX_MSG_LEN, self.get_string('read-more'))
                     messages[0]['text'] += '\n'+content
                 elif images is not None:
                     left, img_link, right = None, None, str(content)
-                    
+                    first = True
                     for img in images:
                         last_message = messages[-1]
                         split_by = str(img)
@@ -429,6 +449,8 @@ class BotHandler:
 
     def send_feed(self, messages, chats):
         deathlist = [] #Delete IDs that are no longer available
+        if messages is None:
+            return
         try:
             for chat_id, chat_data in chats:
                 for msg in messages:
