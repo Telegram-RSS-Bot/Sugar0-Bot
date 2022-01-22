@@ -121,6 +121,8 @@ you can send the last feed manually by sending /last_feed command to the bot')
             self.set_data('last-feed-date', None, DB = data_db)
         self.interval = self.get_data('interval', 5*60, data_db)
         self.__check = True
+        self.check_thread=None
+        self.cache=None
         self.bug_reporter = bug_reporter if bug_reporter else None
         self.log_updates = False
         self.host_re = re.compile(r'https?://([^/\s]*)')
@@ -214,7 +216,7 @@ you can send the last feed manually by sending /last_feed command to the bot')
                 tag.attrs = dict()
         return soup
 
-    @retry(10, 10, 2)
+    @retry(10, 10, 1.5)
     def get_feeds(self):
         self.logger.info('Getting feeds')
         with urlopen(self.feed_configs['source']) as f:
@@ -259,12 +261,7 @@ you can send the last feed manually by sending /last_feed command to the bot')
     # - remove-elements-selector: skip any element that has this attribute
 
     def read_feed(self, count=-1):
-        feeds_page = None
-        try:
-            feeds_page = self.get_feeds()
-        except Exception as e:
-            self.log_bug(e,'exception while trying to get last feed', False, True)
-            return None, None
+        feeds_page = self.cache
         
         soup_page = Soup(feeds_page, self.feed_configs.get('feed-format', 'xml'))
         feeds_list = soup_page.select(self.feed_configs['feeds-selector'])
@@ -535,7 +532,20 @@ you can send the last feed manually by sending /last_feed command to the bot')
         last_date = self.get_data('last-feed-date', DB = self.data_db)
         self.logger.debug(f'last feed date: {last_date}')
         new_date = last_date
-        for i,feed in enumerate(self.read_feed()):
+        try:
+            feeds = self.get_feeds()
+            if feeds:
+                self.logger.debug(f'updating cache')
+                self.cache = feeds
+        except Exception as e:
+            self.log_bug(e,'exception while trying to get last feed', False, True)
+            if self.__check:
+                self.logger.info(f'setting new feed check after {self.interval} seconds')
+                self.check_thread = Timer(self.interval, self.check_new_feed)
+                self.check_thread.start()
+            return
+
+        for feed in self.read_feed():
             date = parse_date(feed['date']) if feed['date'] else None
             if date is None or last_date is not None and date>last_date:
                 self.logger.info(f'sendings new feed date:{date}')

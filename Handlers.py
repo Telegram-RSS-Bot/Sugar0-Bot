@@ -199,11 +199,12 @@ def add_admin_handlers(server: BotHandler):
                 server.interval = int(c.args[0])
                 u.message.reply_text(
                     '✅ Interval changed to '+str(server.interval))
-                server.check_thread.cancel()
-                if server.check_thread.is_alive():
-                    server.check_thread.join()
-                server.check_thread = Timer(server.interval, server.check_new_feed)
-                server.check_thread.start()
+                if server.check_thread:
+                    server.check_thread.cancel()
+                    if server.check_thread.is_alive():
+                        server.check_thread.join()
+                    server.check_thread = Timer(server.interval, server.check_new_feed)
+                    server.check_thread.start()
                 server.set_data(
                     'interval', server.interval, DB = server.data_db)
         else:
@@ -741,6 +742,13 @@ def add_admin_handlers(server: BotHandler):
 def add_users_handlers(server: BotHandler):
     dispatcher_decorators = DispatcherDecorators(server.dispatcher)
 
+    @dispatcher_decorators.messageHandler(Filters.update.edited_message)
+    def handle_edited_msg(u: Update, c:CallbackContext):
+        #TODO: Handle editing messages
+        # Handle messages editing in /send_all could be usefull
+        # labels: enhancement
+        u.edited_message.reply_text(server.strings['edited-message'])
+
     @dispatcher_decorators.commandHandler
     def start(u: Update, c: CallbackContext):
         chat = u.effective_chat
@@ -802,7 +810,9 @@ def add_users_handlers(server: BotHandler):
             if c.user_data['time'] > datetime.now():
                 u.message.reply_text(server.get_string('time-limit-error'))
                 return
-        
+        if server.cache is None:
+            u.message.reply_text('🛑 Cache is not ready yet')
+            return
         count = 1
         if len(c.args) == 1:
             if c.args[0].isdigit():
@@ -818,8 +828,6 @@ def add_users_handlers(server: BotHandler):
                     server.get_string('last-feed')
                 ),
                 chats = [(u.effective_chat.id, c.chat_data)])
-            wait_msg.delete()
-            wait_msg = u.message.reply_animation(open("wait animation.tgs", 'rb'))
         wait_msg.delete()
         c.user_data['time'] = datetime.now() + timedelta(minutes = 2)      #The next request is available 2 minutes later
     
@@ -830,13 +838,6 @@ def add_users_handlers(server: BotHandler):
         if u.effective_chat.id in server.adminID:
             u.message.reply_text(server.get_string('admin-help'))
         u.message.reply_text(server.get_string('help'))
-
-    @dispatcher_decorators.messageHandler(Filters.update.edited_message)
-    def handle_edited_msg(u: Update, c:CallbackContext):
-        #TODO: Handle editing messages
-        # Handle messages editing in /send_all could be usefull
-        # labels: enhancement
-        u.edited_message.reply_text(server.strings['edited-message'])
 
 def add_other_handlers(server: BotHandler):
     dispatcher_decorators = DispatcherDecorators(server.dispatcher)
