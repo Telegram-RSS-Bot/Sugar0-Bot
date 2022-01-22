@@ -18,7 +18,7 @@ import BugReporter
 import Handlers
 import io
 from threading import Timer
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 import lmdb
 from bs4 import BeautifulSoup as Soup
 from bs4 import Comment
@@ -331,7 +331,10 @@ you can send the last feed manually by sending /last_feed command to the bot')
         # Get the video page
         self.logger.debug(f'getting video page from {link}')
         try:
-            with urlopen(link) as f:
+            req = Request(link,
+            headers= {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
+            )
+            with urlopen(req) as f:
                 video_page = f.read().decode('utf-8')
         except Exception as e:
             self.logger.error(f'Exception while getting video page: {e}, link: {link}')
