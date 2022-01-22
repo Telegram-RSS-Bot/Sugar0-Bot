@@ -178,12 +178,20 @@ def add_admin_handlers(server: BotHandler):
     @dispatcher_decorators.commandHandler
     @admin_auth
     def send_feed_toall(u: Update, c: CallbackContext):
-        server.send_feed(
-            server.render_feed(
-                next(server.read_feed()),
-                server.get_string('last-feed')
-            ),
-            server.iter_all_chats())
+        count = 0
+        if len(c.args) == 1:
+            if c.args[0].isdigit():
+                arg = int(c.args[0])
+                count = arg -1 if arg > 0 else 0
+        for i,feed in enumerate(server.get_feed()):
+            server.send_feed(
+                server.render_feed(
+                    feed,
+                    server.get_string('last-feed')
+                ),
+                chats = server.iter_all_chats())
+            if i >= count:
+                break
 
     @dispatcher_decorators.commandHandler
     @admin_auth
@@ -796,20 +804,29 @@ def add_users_handlers(server: BotHandler):
             if c.user_data['time'] > datetime.now():
                 u.message.reply_text(server.get_string('time-limit-error'))
                 return
+        
+        count = 0
+        if len(c.args) == 1:
+            if c.args[0].isdigit():
+                arg = int(c.args[0])
+                count = arg -1 if arg > 0 else 0
+
+
         wait_msg = u.message.reply_animation(open("wait animation.tgs", 'rb'))
-        try:
-            feed = next(server.read_feed())
-        except StopIteration:
-            u.message.reply_text("unable to get last feed right now, try again later")
+        for i,feed in enumerate(server.get_feed()):
+            server.send_feed(
+                server.render_feed(
+                    feed,
+                    server.get_string('last-feed')
+                ),
+                chats = [(u.effective_chat.id, c.chat_data)])
             wait_msg.delete()
-            return
-        server.send_feed(
-            server.render_feed(
-                feed,
-                server.get_string('last-feed')
-            ),
-            chats = [(u.effective_chat.id, c.chat_data)])
-        wait_msg.delete()
+            if i >= count:
+                break
+            else:
+                wait_msg = u.message.reply_animation(open("wait animation.tgs", 'rb'))
+        else:
+            wait_msg.delete()
         c.user_data['time'] = datetime.now() + timedelta(minutes = 2)      #The next request is available 2 minutes later
     
     @dispatcher_decorators.commandHandler(command = 'help')
