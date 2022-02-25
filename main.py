@@ -1,9 +1,5 @@
 import argparse
-from asyncio.log import logger
-from datetime import datetime
-from email import message
 import html
-from xml.sax.handler import feature_external_ges
 import bs4
 import commentjson
 import logging
@@ -11,7 +7,6 @@ import os
 import pickle
 import re
 import sys
-from pyparsing import Regex
 
 from telegram.files.document import Document
 import BugReporter
@@ -325,9 +320,29 @@ you can send the last feed manually by sending /last_feed command to the bot')
                 'date': time
                 }
 
-    def grab_video(self,link):
+    def fetch_video_src(self,link, host=None):
         # Get the video page
         self.logger.debug(f'getting video page from {link}')
+
+        #special methods
+        if host:
+            if host == 'streamff.com':
+                src = re.sub('(https://streamff.com)/v/(.*)','\\1/uploads/\\2.mp4',link)
+                req = Request(src,
+                headers= {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
+                )
+                try:
+                    if urlopen(req).headers.get('Content-Type') == 'video/mp4':
+                        return src
+                    else:
+                        self.logger.debug(f'{src} is not a mp4 file: {urlopen(req).headers.get("Content-Type")}')
+                except Exception as e:
+                    self.logger.debug(e)
+                self.logger.info(f'unable to get video from {link}')
+                return None
+
+
+        # usual method
         try:
             req = Request(link,
             headers= {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
@@ -384,7 +399,7 @@ you can send the last feed manually by sending /last_feed command to the bot')
                         if m:
                             host = m.group(1)
                             if host in self.feed_configs.get('video-hosts',[]):
-                                src = self.grab_video(link['href'])
+                                src = self.fetch_video_src(link['href'], host)
                                 if src:
                                     self.logger.debug(f'Found video: {src}')
                                     messages[0]['type'] = 'video'
