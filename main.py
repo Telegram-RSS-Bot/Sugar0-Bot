@@ -7,7 +7,9 @@ import os
 import pickle
 import re
 import sys
+from colorama import init as colorama_init, Fore, Style
 
+from logging.handlers import TimedRotatingFileHandler
 from telegram.files.document import Document
 import BugReporter
 import Handlers
@@ -26,6 +28,7 @@ from telegram.ext import Updater
 import time
 from functools import wraps
 
+colorama_init()
 
 def retry(tries=4, delay=3, backoff=2, logger=logging):
     """Retry calling the decorated function using an exponential backoff.
@@ -157,7 +160,7 @@ you can send the last feed manually by sending /last_feed command to the bot')
 
     def log_bug(self, exc:Exception, msg='', report = True, disable_notification = False,**args):
         info = BugReporter.exception(msg, exc, report = self.bug_reporter and report)
-        self.logger.exception(msg, exc_info=exc)
+        self.logger.exception('[log bug] '+msg, exc_info=exc)
         msg = html.escape(msg)
         escaped_info = {k:html.escape(str(v)) for k,v in info.items()}
         message = (
@@ -320,50 +323,44 @@ you can send the last feed manually by sending /last_feed command to the bot')
                 'date': time
                 }
 
-    def fetch_video_src(self,link, host=None):
+    def fetch_video_src(self,link, host):
         # Get the video page
         self.logger.debug(f'getting video page from {link}')
-
+        headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
         #special methods
-        if host:
-            if host == 'streamff.com':
-                src = re.sub('(https://streamff.com)/v/(.*)','\\1/uploads/\\2.mp4',link)
-                req = Request(src,
-                headers= {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
-                )
-                try:
-                    if urlopen(req).headers.get('Content-Type') == 'video/mp4':
-                        return src
-                    else:
-                        self.logger.debug(f'{src} is not a mp4 file: {urlopen(req).headers.get("Content-Type")}')
-                except Exception as e:
-                    self.logger.debug(e)
-                self.logger.info(f'unable to get video from {link}')
+        if host == 'streamff.com':
+            src = re.sub('(https://streamff.com)/v/(.*)','\\1/uploads/\\2.mp4',link)
+        else:
+            # usual method
+            try:
+                req = Request(link, headers= headers)
+                with urlopen(req) as f:
+                    video_page = f.read().decode('utf-8')
+            except Exception as e:
+                self.logger.error(f'Exception while getting video page: {e}, link: {link}')
                 return None
+            
+            # Get the video
+            soup = Soup(video_page, 'html.parser')
+            video = soup.find('video')
+            if video:
+                if video.has_attr('src'):
+                    src = video['src']
+                else:
+                    source = video.find('source')
+                    if source:
+                        src = source['src']
 
-
-        # usual method
+        # check src
+        req = Request(src, headers= headers)
         try:
-            req = Request(link,
-            headers= {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
-            )
-            with urlopen(req) as f:
-                video_page = f.read().decode('utf-8')
-        except Exception as e:
-            self.logger.error(f'Exception while getting video page: {e}, link: {link}')
-            return None
-        
-        # Get the video
-        soup = Soup(video_page, 'html.parser')
-        video = soup.find('video')
-        if video:
-            if video.has_attr('src'):
-                return video['src']
+            if urlopen(req).headers.get('Content-Type') == 'video/mp4':
+                return src
             else:
-                source = video.find('source')
-                if source:
-                    return source['src']
-        self.logger.error(f'Video not found on {link}')
+                self.logger.debug(f'{src} is not a mp4 file: {urlopen(req).headers.get("Content-Type")}')
+        except Exception as e:
+            self.logger.debug(e)
+        self.logger.info(f'unable to get video from {link}')
         return None
 
     def render_feed(self, feed: dict, header: str):
@@ -614,6 +611,21 @@ you can send the last feed manually by sending /last_feed command to the bot')
             print('waiting for check thread to finish')
             self.check_thread.join()
 
+class ColoredLog(logging.Formatter):
+    format = "%(asctime)s  %(name)-12.12s L%(lineno)-4.4d  %(levelname)-7.7s: %(message)s"
+
+    FORMATS = {
+        logging.DEBUG: Fore.LIGHTBLACK_EX + format + Style.RESET_ALL,
+        logging.INFO: Fore.WHITE + format + Style.RESET_ALL,
+        logging.WARNING: Fore.YELLOW + format + Style.RESET_ALL,
+        logging.ERROR: Fore.RED + format + Style.RESET_ALL,
+        logging.CRITICAL: Fore.LIGHTRED_EX + format + Style.RESET_ALL
+    }
+
+    def format(self, record):
+        log_fmt = self.FORMATS.get(record.levelno)
+        formatter = logging.Formatter(log_fmt)
+        return formatter.format(record)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('main.py',
@@ -636,14 +648,27 @@ if __name__ == '__main__':
 
     token = config.get('token')
     if not token:
-        logging.error("No Token, terminating")
+        print("No Token, terminating")
         sys.exit()
+
+    # configuring logging
+    logFormatter = logging.Formatter("%(asctime)s  %(name)-12.12s L%(lineno)-4.4d  %(levelname)-7.7s: %(message)s")
+    log_dir = config.get('log-dir')
+    handlers = []
+    if isinstance(log_dir, str):
+        fileHandler = TimedRotatingFileHandler(filename=os.path.join(log_dir, 'Telegram-rss-bot.log'), when='midnight', interval=1, backupCount=7)
+        fileHandler.setFormatter(logFormatter)
+        handlers.append(fileHandler)
+    if config.get('log-console'):
+        consoleHandler = logging.StreamHandler()
+        consoleHandler.setFormatter(ColoredLog())
+        handlers.append(consoleHandler)
+    if handlers:
+        level = logging._nameToLevel.get(config.get('log-level','INFO').upper(),logging.INFO)
+        logging.basicConfig(level=level, handlers=handlers)
+
+    logger = logging.getLogger('main')
     
-    log_file_name = config.get('log-file')
-    logging.basicConfig(
-        format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        filename=log_file_name,
-        level = logging._nameToLevel.get(config.get('log-level','INFO').upper(),logging.INFO))
     env = lmdb.open(config.get('db-path','db.lmdb'), max_dbs = 3)
     chats_db = env.open_db(b'chats')
     data_db = env.open_db(b'config')        #using old name for compatibility
@@ -679,15 +704,15 @@ if __name__ == '__main__':
                 strings = commentjson.load(f)
             if language in strings:
                 strings = strings[language]
-                logging.info(f'using "{language}" language from "{file}" file')
+                logger.info(f'using "{language}" language from "{file}" file')
                 break
             else:
-                logging.error(f'"{language}" language code not found in "{file}"')
+                logger.error(f'"{language}" language code not found in "{file}"')
         else:
-            logging.error(f'file "{file}" not found')
+            logger.error(f'file "{file}" not found')
 
     if not strings or strings == dict():
-        logging.error('Cannot use a strings file. exiting...')
+        logger.critical('Cannot use a strings file. exiting...')
         sys.exit(1)
 
     bug_reporter_config = config.get('bug-reporter','off')
@@ -716,15 +741,15 @@ if __name__ == '__main__':
                 cherrypy.engine.start()
                 
             except ModuleNotFoundError:
-                logging.error('Cherrypy module not found, please first make sure that it is installed and then use http-bug-reporter')
-                logging.info(f'Can not run http bug reporter, skipping http, saving bugs in {bugs_file}')
+                logger.error('Cherrypy module not found, please first make sure that it is installed and then use http-bug-reporter')
+                logger.info(f'Can not run http bug reporter, skipping http, saving bugs in {bugs_file}')
             except:
-                logging.exception("Error occurred while running http server")
-                logging.info(f'Can not run http bug reporter, skipping http, saving bugs in {bugs_file}')
+                logger.exception("Error occurred while running http server")
+                logger.info(f'Can not run http bug reporter, skipping http, saving bugs in {bugs_file}')
             else:
-                logging.info(f'reporting bugs with http server and saving them as {bugs_file}')
+                logger.info(f'reporting bugs with http server and saving them as {bugs_file}')
         else:
-            logging.info(f'saving bugs in {bugs_file}')
+            logger.info(f'saving bugs in {bugs_file}')
 
     debug = config.get('debug',False)
 
@@ -737,10 +762,10 @@ if __name__ == '__main__':
     bot_handler.run()
     bot_handler.idle()
     if bug_reporter_config != 'off':
-        logging.info('saving bugs report')
+        logger.info('saving bugs report')
         BugReporter.dump()
     if 'http-config' in bug_reporter_config:
-        logging.info('stoping http reporter')
+        logger.info('stoping http reporter')
         cherrypy.engine.stop()
     env.close()
     

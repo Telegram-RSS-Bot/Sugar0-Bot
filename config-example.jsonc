@@ -42,7 +42,8 @@
     "strings-file": "default-strings.json",
     "language": "en-us",
     "log-level": "info",
-    "log-file": null,   //set a file for log to redirect logs to file
+    "log-dir": null,   //set null or comment to skip logging to file
+    "log-console": true,    //set false to disable logging to console
     // bug-reporter config (check https://github.com/bsimjoo/Telegram-RSS-Bot/blob/main/docs/configuration-guide.md)
     "bug-reporter": "off"
     // OFFLINE-MODE:
